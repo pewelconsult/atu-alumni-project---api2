@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News Feed - Alumni Network</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-left">
+                <a href="#" class="logo">
+                    <i class="fas fa-graduation-cap"></i>
+                    Alumni Network
+                </a>
+            </div>
+            <div class="nav-center">
+                <div class="search-bar">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="Search alumni, posts, or companies...">
+                </div>
+            </div>
+            <div class="nav-right">
+                <a href="#" class="nav-icon">
+                    <i class="fas fa-home"></i>
+                </a>
+                <a href="#" class="nav-icon">
+                    <i class="fas fa-user-friends"></i>
+                    <span class="badge">5</span>
+                </a>
+                <a href="#" class="nav-icon">
+                    <i class="fas fa-briefcase"></i>
+                </a>
+                <a href="#" class="nav-icon">
+                    <i class="fas fa-bell"></i>
+                    <span class="badge">3</span>
+                </a>
+                <a href="#" class="nav-icon">
+                    <i class="fas fa-envelope"></i>
+                </a>
+                <div class="profile-dropdown">
+                    <img src="https://ui-avatars.com/api/?name=John+Doe&background=667eea&color=fff" alt="Profile" class="profile-pic">
+                    <i class="fas fa-caret-down"></i>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Left Sidebar -->
+        <aside class="left-sidebar">
+            <div class="profile-card">
+                <div class="profile-cover"></div>
+                <img src="https://ui-avatars.com/api/?name=John+Doe&background=667eea&color=fff&size=80" alt="Profile" class="profile-avatar">
+                <h3>John Doe</h3>
+                <p class="profile-title">Software Engineer at Tech Corp</p>
+                <p class="profile-grad">Class of 2020 • Computer Science</p>
+                <div class="profile-stats">
+                    <div class="stat">
+                        <span class="stat-number">342</span>
+                        <span class="stat-label">Connections</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number">89</span>
+                        <span class="stat-label">Posts</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <h4><i class="fas fa-bookmark"></i> Saved Posts</h4>
+                <h4><i class="fas fa-calendar-alt"></i> Events</h4>
+                <h4><i class="fas fa-users"></i> Groups</h4>
+            </div>
+        </aside>
+
+        <!-- Main Feed -->
+        <main class="feed">
+            <!-- Create Post Card -->
+            <div class="create-post-card">
+                <div class="create-post-header">
+                    <img src="https://ui-avatars.com/api/?name=John+Doe&background=667eea&color=fff&size=50" alt="Profile">
+                    <input type="text" placeholder="Share an update, achievement, or opportunity...">
+                </div>
+                <div class="create-post-actions">
+                    <button class="post-action">
+                        <i class="fas fa-image"></i>
+                        Photo
+                    </button>
+                    <button class="post-action">
+                        <i class="fas fa-video"></i>
+                        Video
+                    </button>
+                    <button class="post-action">
+                        <i class="fas fa-briefcase"></i>
+                        Job
+                    </button>
+                    <button class="post-action">
+                        <i class="fas fa-pencil-alt"></i>
+                        Article
+                    </button>
+                </div>
+            </div>
+
+            <!-- Post Card 1 -->
+            <article class="post-card">
+                <div class="post-header">
+                    <img src="https://ui-avatars.com/api/?name=Sarah+Johnson&background=f093fb&color=fff&size=50" alt="Sarah Johnson">
+                    <div class="post-author-info">
+                        <h3>Sarah Johnson</h3>
+                        <p>Senior Product Manager at Google • Class of 2018</p>
+                        <p class="post-time"><i class="far fa-clock"></i> 2 hours ago</p>
+                    </div>
+                    <button class="post-menu-btn">
+                        <i class="fas fa-ellipsis-h"></i>
+                    </button>
+                </div>
+                <div class="post-content">
+                    <p>🎉 Excited to share that I've been promoted to Senior Product Manager! Grateful for the journey and all the mentors who helped me along the way. Special thanks to the alumni network for connecting me with amazing people. #CareerGrowth #ProductManagement</p>
+                    <img src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=600&h=400&fit=crop" alt="Post image" class="post-image">
+                </div>
+                <div class="post-stats">
+                    <div class="post-reactions">
+                        <div class="reaction-icons">
+                            <span class="reaction">👏</span>
+                            <span class="reaction">🎉</span>
+                            <span class="reaction">❤️</span>
+                        </div>
+                        <span>127</span>
+                    </div>
+                    <div class="post-engagement">
+                        <span>45 comments</span>
+                        <span>23 shares</span>
+                    </div>
+                </div>
+                <div class="post-actions">
+                    <button class="action-btn">
+                        <i class="far fa-thumbs-up"></i>
+                        Like
+                    </button>
+                    <button class="action-btn">
+                        <i class="far fa-comment"></i>
+                        Comment
+                    </button>
+                    <button class="action-btn">
+                        <i class="fas fa-share"></i>
+                        Share
+                    </button>
+                    <button class="action-btn">
+                        <i class="far fa-bookmark"></i>
+                        Save
+                    </button>
+                </div>
+            </article>
+
+            <!-- Post Card 2 - Job Posting -->
+            <article class="post-card job-post">
+                <div class="job-badge">
+                    <i class="fas fa-briefcase"></i> Job Opportunity
+                </div>
+                <div class="post-header">
+                    <img src="https://ui-avatars.com/api/?name=Michael+Chen&background=4facfe&color=fff&size=50" alt="Michael Chen">
+                    <div class="post-author-info">
+                        <h3>Michael Chen</h3>
+                        <p>Tech Recruiter at Microsoft • Class of 2015</p>
+                        <p class="post-time"><i class="far fa-clock"></i> 5 hours ago</p>
+                    </div>
+                    <button class="post-menu-btn">
+                        <i class="fas fa-ellipsis-h"></i>
+                    </button>
+                </div>
+                <div class="post-content">
+                    <h4>🚀 We're Hiring: Senior Software Engineer</h4>
+                    <p>Microsoft is looking for talented engineers to join our Azure team! Great opportunity for anyone interested in cloud computing and distributed systems.</p>
+                    <div class="job-details">
+                        <div class="job-detail-item">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <span>Seattle, WA (Hybrid)</span>
+                        </div>
+                        <div class="job-detail-item">
+                            <i class="fas fa-dollar-sign"></i>
+                            <span>$150K - $200K</span>
+                        </div>
+                        <div class="job-detail-item">
+                            <i class="fas fa-briefcase"></i>
+                            <span>Full-time</span>
+                        </div>
+                    </div>
+                    <button class="apply-btn">Apply Now</button>
+                </div>
+                <div class="post-stats">
+                    <div class="post-reactions">
+                        <div class="reaction-icons">
+                            <span class="reaction">👍</span>
+                            <span class="reaction">🚀</span>
+                        </div>
+                        <span>89</span>
+                    </div>
+                    <div class="post-engagement">
+                        <span>32 comments</span>
+                        <span>56 shares</span>
+                    </div>
+                </div>
+                <div class="post-actions">
+                    <button class="action-btn">
+                        <i class="far fa-thumbs-up"></i>
+                        Like
+                    </button>
+                    <button class="action-btn">
+                        <i class="far fa-comment"></i>
+                        Comment
+                    </button>
+                    <button class="action-btn">
+                        <i class="fas fa-share"></i>
+                        Share
+                    </button>
+                    <button class="action-btn">
+                        <i class="far fa-bookmark"></i>
+                        Save
+                    </button>
+                </div>
+            </article>
+
+            <!-- Post Card 3 - Event -->
+            <article class="post-card event-post">
+                <div class="event-badge">
+                    <i class="fas fa-calendar-alt"></i> Upcoming Event
+                </div>
+                <div class="post-header">
+                    <img src="https://ui-avatars.com/api/?name=Alumni+Association&background=f093fb&color=fff&size=50" alt="Alumni Association">
+                    <div class="post-author-info">
+                        <h3>Alumni Association</h3>
+                        <p>Official University Alumni Network</p>
+                        <p class="post-time"><i class="far fa-clock"></i> 1 day ago</p>
+                    </div>
+                    <button class="post-menu-btn">
+                        <i class="fas fa-ellipsis-h"></i>
+                    </button>
+                </div>
+                <div class="post-content">
+                    <h4>🎓 Annual Alumni Reunion 2025</h4>
+                    <img src="https://images.unsplash.com/photo-1511578314322-379afb476865?w=600&h=300&fit=crop" alt="Event image" class="post-image">
+                    <p>Join us for our biggest reunion yet! Reconnect with old friends, network with fellow alumni, and celebrate our shared legacy.</p>
+                    <div class="event-details">
+                        <div class="event-detail-item">
+                            <i class="fas fa-calendar"></i>
+                            <span>December 15, 2025</span>
+                        </div>
+                        <div class="event-detail-item">
+                            <i class="fas fa-clock"></i>
+                            <span>6:00 PM - 10:00 PM</span>
+                        </div>
+                        <div class="event-detail-item">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <span>University Main Campus</span>
+                        </div>
+                        <div class="event-detail-item">
+                            <i class="fas fa-users"></i>
+                            <span>234 attending</span>
+                        </div>
+                    </div>
+                    <button class="register-btn">Register Now</button>
+                </div>
+                <div class="post-stats">
+                    <div class="post-reactions">
+                        <div class="reaction-icons">
+                            <span class="reaction">❤️</span>
+                            <span class="reaction">🎉</span>
+                            <span class="reaction">👏</span>
+                        </div>
+                        <span>234</span>
+                    </div>
+                    <div class="post-engagement">
+                        <span>78 comments</span>
+                        <span>91 shares</span>
+                    </div>
+                </div>
+                <div class="post-actions">
+                    <button class="action-btn">
+                        <i class="far fa-thumbs-up"></i>
+                        Like
+                    </button>
+                    <button class="action-btn">
+                        <i class="far fa-comment"></i>
+                        Comment
+                    </button>
+                    <button class="action-btn">
+                        <i class="fas fa-share"></i>
+                        Share
+                    </button>
+                    <button class="action-btn">
+                        <i class="far fa-bookmark"></i>
+                        Save
+                    </button>
+                </div>
+            </article>
+
+            <!-- Post Card 4 - Regular Post -->
+            <article class="post-card">
+                <div class="post-header">
+                    <img src="https://ui-avatars.com/api/?name=David+Martinez&background=43e97b&color=fff&size=50" alt="David Martinez">
+                    <div class="post-author-info">
+                        <h3>David Martinez</h3>
+                        <p>Data Scientist at Amazon • Class of 2019</p>
+                        <p class="post-time"><i class="far fa-clock"></i> 2 days ago</p>
+                    </div>
+                    <button class="post-menu-btn">
+                        <i class="fas fa-ellipsis-h"></i>
+                    </button>
+                </div>
+                <div class="post-content">
+                    <p>Just published my first research paper on machine learning applications in healthcare! 📊 Would love to hear thoughts from fellow alumni working in ML/AI. Link in comments. #MachineLearning #Research</p>
+                </div>
+                <div class="post-stats">
+                    <div class="post-reactions">
+                        <div class="reaction-icons">
+                            <span class="reaction">👏</span>
+                            <span class="reaction">🎉</span>
+                        </div>
+                        <span>156</span>
+                    </div>
+                    <div class="post-engagement">
+                        <span>67 comments</span>
+                        <span>34 shares</span>
+                    </div>
+                </div>
+                <div class="post-actions">
+                    <button class="action-btn active">
+                        <i class="fas fa-thumbs-up"></i>
+                        Like
+                    </button>
+                    <button class="action-btn">
+                        <i class="far fa-comment"></i>
+                        Comment
+                    </button>
+                    <button class="action-btn">
+                        <i class="fas fa-share"></i>
+                        Share
+                    </button>
+                    <button class="action-btn">
+                        <i class="far fa-bookmark"></i>
+                        Save
+                    </button>
+                </div>
+            </article>
+
+            <!-- Load More -->
+            <div class="load-more">
+                <button class="load-more-btn">
+                    <i class="fas fa-spinner"></i>
+                    Load More Posts
+                </button>
+            </div>
+        </main>
+
+        <!-- Right Sidebar -->
+        <aside class="right-sidebar">
+            <!-- Trending Topics -->
+            <div class="sidebar-card">
+                <h3>🔥 Trending</h3>
+                <div class="trending-item">
+                    <span class="trending-hashtag">#CareerGrowth</span>
+                    <span class="trending-count">1,234 posts</span>
+                </div>
+                <div class="trending-item">
+                    <span class="trending-hashtag">#AlumniReunion2025</span>
+                    <span class="trending-count">892 posts</span>
+                </div>
+                <div class="trending-item">
+                    <span class="trending-hashtag">#JobOpportunities</span>
+                    <span class="trending-count">756 posts</span>
+                </div>
+                <div class="trending-item">
+                    <span class="trending-hashtag">#TechTalks</span>
+                    <span class="trending-count">634 posts</span>
+                </div>
+                <div class="trending-item">
+                    <span class="trending-hashtag">#Mentorship</span>
+                    <span class="trending-count">521 posts</span>
+                </div>
+            </div>
+
+            <!-- Suggested Connections -->
+            <div class="sidebar-card">
+                <h3>👥 Suggested Connections</h3>
+                <div class="connection-item">
+                    <img src="https://ui-avatars.com/api/?name=Emma+Wilson&background=f093fb&color=fff&size=40" alt="Emma Wilson">
+                    <div class="connection-info">
+                        <h4>Emma Wilson</h4>
+                        <p>UX Designer • Class of 2021</p>
+                    </div>
+                    <button class="connect-btn">
+                        <i class="fas fa-user-plus"></i>
+                    </button>
+                </div>
+                <div class="connection-item">
+                    <img src="https://ui-avatars.com/api/?name=James+Lee&background=4facfe&color=fff&size=40" alt="James Lee">
+                    <div class="connection-info">
+                        <h4>James Lee</h4>
+                        <p>Marketing Manager • Class of 2019</p>
+                    </div>
+                    <button class="connect-btn">
+                        <i class="fas fa-user-plus"></i>
+                    </button>
+                </div>
+                <div class="connection-item">
+                    <img src="https://ui-avatars.com/api/?name=Lisa+Brown&background=43e97b&color=fff&size=40" alt="Lisa Brown">
+                    <div class="connection-info">
+                        <h4>Lisa Brown</h4>
+                        <p>Entrepreneur • Class of 2017</p>
+                    </div>
+                    <button class="connect-btn">
+                        <i class="fas fa-user-plus"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Upcoming Events -->
+            <div class="sidebar-card">
+                <h3>📅 Upcoming Events</h3>
+                <div class="mini-event">
+                    <div class="mini-event-date">
+                        <span class="date-day">15</span>
+                        <span class="date-month">DEC</span>
+                    </div>
+                    <div class="mini-event-info">
+                        <h4>Annual Alumni Reunion</h4>
+                        <p>6:00 PM • Main Campus</p>
+                    </div>
+                </div>
+                <div class="mini-event">
+                    <div class="mini-event-date">
+                        <span class="date-day">22</span>
+                        <span class="date-month">DEC</span>
+                    </div>
+                    <div class="mini-event-info">
+                        <h4>Career Networking Night</h4>
+                        <p>7:00 PM • Virtual</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Links -->
+            <div class="sidebar-footer">
+                <a href="#">About</a>
+                <a href="#">Help</a>
+                <a href="#">Privacy</a>
+                <a href="#">Terms</a>
+                <p>&copy; 2025 Alumni Network</p>
+            </div>
+        </aside>
+    </div>
+</body>
+</html>
