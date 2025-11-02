@@ -1,4 +1,4 @@
-// src/controllers/forumController.js
+// src/controllers/forumController.js - COMPLETE FIXED VERSION
 import pool from "../config/db.js";
 
 const forumController = {
@@ -209,112 +209,154 @@ const forumController = {
         }
     },
 
-    // ==================== POSTS ====================
 
-    // Get all posts with filters
     getAllPosts: async (req, res) => {
-        try {
-            const {
-                category_id,
-                user_id,
-                tags,
-                is_pinned,
-                search,
-                page = 1,
-                limit = 20,
-                sort_by = 'last_activity_at',
-                sort_order = 'DESC'
-            } = req.query;
+    try {
+        const {
+            category_id,
+            user_id,
+            tags,
+            is_pinned,
+            search,
+            page = 1,
+            limit = 20,
+            sort_by = 'last_activity_at',
+            sort_order = 'DESC'
+        } = req.query;
 
-            let queryText = `
-                SELECT 
-                    fp.*,
-                    fc.name as category_name,
-                    fc.slug as category_slug,
-                    u.first_name || ' ' || u.last_name as author_name,
-                    u.profile_picture as author_picture,
-                    (SELECT COUNT(*) > 0 FROM forum_post_likes WHERE post_id = fp.id AND user_id = $1) as user_has_liked
-                FROM forum_posts fp
-                LEFT JOIN forum_categories fc ON fp.category_id = fc.id
-                LEFT JOIN users u ON fp.user_id = u.id
-                WHERE fp.is_published = true
-            `;
+        const currentUserId = req.query.current_user_id || 0;
 
-            const queryParams = [req.query.current_user_id || 0];
-            let paramCount = 1;
+        // === COUNT QUERY ===
+        let countWhereConditions = ['fp.is_published = true'];
+        const countParams = [];
+        let countParamCount = 0;
 
-            // Filters
-            if (category_id) {
-                paramCount++;
-                queryText += ` AND fp.category_id = $${paramCount}`;
-                queryParams.push(category_id);
-            }
-
-            if (user_id) {
-                paramCount++;
-                queryText += ` AND fp.user_id = $${paramCount}`;
-                queryParams.push(user_id);
-            }
-
-            if (is_pinned === 'true') {
-                queryText += ` AND fp.is_pinned = true`;
-            }
-
-            if (tags) {
-                paramCount++;
-                queryText += ` AND fp.tags && $${paramCount}::text[]`;
-                queryParams.push(`{${tags}}`);
-            }
-
-            if (search) {
-                paramCount++;
-                queryText += ` AND (
-                    fp.title ILIKE $${paramCount} OR 
-                    fp.content ILIKE $${paramCount}
-                )`;
-                queryParams.push(`%${search}%`);
-            }
-
-            // Get total count
-            const countQuery = queryText.replace(/SELECT.*FROM/s, 'SELECT COUNT(*) FROM');
-            const countResult = await pool.query(countQuery, queryParams);
-            const totalPosts = parseInt(countResult.rows[0].count);
-
-            // Add sorting and pagination
-            const validSortFields = ['created_at', 'last_activity_at', 'views_count', 'replies_count', 'likes_count', 'title'];
-            const sortField = validSortFields.includes(sort_by) ? sort_by : 'last_activity_at';
-            const order = sort_order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-
-            // Pinned posts first, then sort by selected field
-            queryText += ` ORDER BY fp.is_pinned DESC, fp.${sortField} ${order}`;
-
-            const offset = (page - 1) * limit;
-            queryText += ` LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
-            queryParams.push(limit, offset);
-
-            const result = await pool.query(queryText, queryParams);
-
-            res.status(200).json({
-                success: true,
-                count: result.rows.length,
-                total: totalPosts,
-                pagination: {
-                    page: parseInt(page),
-                    limit: parseInt(limit),
-                    total_pages: Math.ceil(totalPosts / limit)
-                },
-                data: result.rows
-            });
-
-        } catch (error) {
-            console.error("Get posts error:", error);
-            res.status(500).json({
-                success: false,
-                error: "Failed to fetch posts"
-            });
+        if (category_id) {
+            countParamCount++;
+            countWhereConditions.push(`fp.category_id = $${countParamCount}`);
+            countParams.push(category_id);
         }
-    },
 
+        if (user_id) {
+            countParamCount++;
+            countWhereConditions.push(`fp.user_id = $${countParamCount}`);
+            countParams.push(user_id);
+        }
+
+        if (is_pinned === 'true') {
+            countWhereConditions.push(`fp.is_pinned = true`);
+        }
+
+        if (tags) {
+            countParamCount++;
+            countWhereConditions.push(`fp.tags && $${countParamCount}::text[]`);
+            countParams.push(`{${tags}}`);
+        }
+
+        if (search) {
+            countParamCount++;
+            countWhereConditions.push(`(fp.title ILIKE $${countParamCount} OR fp.content ILIKE $${countParamCount})`);
+            countParams.push(`%${search}%`);
+        }
+
+        const countWhereClause = countWhereConditions.join(' AND ');
+        const countQuery = `
+            SELECT COUNT(*) 
+            FROM forum_posts fp
+            WHERE ${countWhereClause}
+        `;
+
+        const countResult = await pool.query(countQuery, countParams);
+        const totalPosts = parseInt(countResult.rows[0].count);
+
+        // === MAIN QUERY ===
+        let mainWhereConditions = ['fp.is_published = true'];
+        const mainParams = [currentUserId]; // $1 = currentUserId
+        let mainParamCount = 1;
+
+        if (category_id) {
+            mainParamCount++;
+            mainWhereConditions.push(`fp.category_id = $${mainParamCount}`);
+            mainParams.push(category_id);
+        }
+
+        if (user_id) {
+            mainParamCount++;
+            mainWhereConditions.push(`fp.user_id = $${mainParamCount}`);
+            mainParams.push(user_id);
+        }
+
+        if (is_pinned === 'true') {
+            mainWhereConditions.push(`fp.is_pinned = true`);
+        }
+
+        if (tags) {
+            mainParamCount++;
+            mainWhereConditions.push(`fp.tags && $${mainParamCount}::text[]`);
+            mainParams.push(`{${tags}}`);
+        }
+
+        if (search) {
+            mainParamCount++;
+            mainWhereConditions.push(`(fp.title ILIKE $${mainParamCount} OR fp.content ILIKE $${mainParamCount})`);
+            mainParams.push(`%${search}%`);
+        }
+
+        const mainWhereClause = mainWhereConditions.join(' AND ');
+
+        let mainQuery = `
+            SELECT 
+                fp.*,
+                fc.name as category_name,
+                fc.slug as category_slug,
+                u.first_name || ' ' || u.last_name as author_name,
+                u.profile_picture as author_picture,
+                (SELECT COUNT(*) > 0 FROM forum_post_likes WHERE post_id = fp.id AND user_id = $1) as user_has_liked
+            FROM forum_posts fp
+            LEFT JOIN forum_categories fc ON fp.category_id = fc.id
+            LEFT JOIN users u ON fp.user_id = u.id
+            WHERE ${mainWhereClause}
+        `;
+
+        // Sorting
+        const validSortFields = ['created_at', 'last_activity_at', 'views_count', 'replies_count', 'likes_count', 'title'];
+        const sortField = validSortFields.includes(sort_by) ? sort_by : 'last_activity_at';
+        const order = sort_order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+        mainQuery += ` ORDER BY fp.is_pinned DESC, fp.${sortField} ${order}`;
+
+        // Pagination
+        const offset = (page - 1) * limit;
+        mainParamCount++;
+        mainQuery += ` LIMIT $${mainParamCount}`;
+        mainParams.push(limit);
+
+        mainParamCount++;
+        mainQuery += ` OFFSET $${mainParamCount}`;
+        mainParams.push(offset);
+
+        const result = await pool.query(mainQuery, mainParams);
+
+        res.status(200).json({
+            success: true,
+            count: result.rows.length,
+            total: totalPosts,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total_pages: Math.ceil(totalPosts / limit)
+            },
+            data: result.rows
+        });
+
+    } catch (error) {
+        console.error("Get posts error:", error);
+        res.status(500).json({
+            success: false,
+            error: "Failed to fetch posts"
+        });
+    }
+},
     // Get popular posts
     getPopularPosts: async (req, res) => {
         try {
@@ -446,6 +488,7 @@ const forumController = {
     getPostById: async (req, res) => {
         try {
             const { id } = req.params;
+            const userId = req.query.user_id || 0;
 
             const result = await pool.query(
                 `SELECT 
@@ -462,7 +505,7 @@ const forumController = {
                 LEFT JOIN forum_categories fc ON fp.category_id = fc.id
                 LEFT JOIN users u ON fp.user_id = u.id
                 WHERE fp.id = $1 AND fp.is_published = true`,
-                [id, req.query.user_id || 0]
+                [id, userId]
             );
 
             if (result.rows.length === 0) {
@@ -1030,7 +1073,8 @@ const forumController = {
     getPostReplies: async (req, res) => {
         try {
             const { id } = req.params;
-            const { page = 1, limit = 50 } = req.query;
+            const { page = 1, limit = 50, user_id } = req.query;
+            const currentUserId = user_id || 0;
 
             const queryText = `
                 SELECT 
@@ -1050,7 +1094,7 @@ const forumController = {
             `;
 
             const offset = (page - 1) * limit;
-            const result = await pool.query(queryText, [id, limit, req.query.user_id || 0, offset]);
+            const result = await pool.query(queryText, [id, limit, currentUserId, offset]);
 
             // Get total count
             const countResult = await pool.query(
@@ -1084,6 +1128,8 @@ const forumController = {
     getNestedReplies: async (req, res) => {
         try {
             const { id, replyId } = req.params;
+            const { user_id } = req.query;
+            const currentUserId = user_id || 0;
 
             const queryText = `
                 SELECT 
@@ -1099,7 +1145,7 @@ const forumController = {
                 ORDER BY fr.created_at ASC
             `;
 
-            const result = await pool.query(queryText, [replyId, id, req.query.user_id || 0]);
+            const result = await pool.query(queryText, [replyId, id, currentUserId]);
 
             res.status(200).json({
                 success: true,
@@ -1171,7 +1217,8 @@ const forumController = {
 
             const replyData = {
                 ...result.rows[0],
-                ...userInfo.rows[0],
+                author_name: userInfo.rows[0].first_name + ' ' + userInfo.rows[0].last_name,
+                author_picture: userInfo.rows[0].profile_picture,
                 replies_count: 0,
                 user_has_liked: false
             };
@@ -1245,7 +1292,8 @@ const forumController = {
 
             const replyData = {
                 ...result.rows[0],
-                ...userInfo.rows[0],
+                author_name: userInfo.rows[0].first_name + ' ' + userInfo.rows[0].last_name,
+                author_picture: userInfo.rows[0].profile_picture,
                 user_has_liked: false
             };
 
@@ -1601,45 +1649,5 @@ const forumController = {
         }
     }
 };
-
-
-
-// Helper function to check post ownership
-const checkPostOwnership = async (postId, userId, isAdmin) => {
-    const result = await pool.query(
-        "SELECT user_id FROM forum_posts WHERE id = $1",
-        [postId]
-    );
-    
-    if (result.rows.length === 0) {
-        return { exists: false, isOwner: false };
-    }
-    
-    const isOwner = result.rows[0].user_id === parseInt(userId);
-    return { 
-        exists: true, 
-        isOwner: isOwner || isAdmin 
-    };
-};
-
-// Helper function to check reply ownership
-const checkReplyOwnership = async (replyId, userId, isAdmin) => {
-    const result = await pool.query(
-        "SELECT user_id FROM forum_replies WHERE id = $1",
-        [replyId]
-    );
-    
-    if (result.rows.length === 0) {
-        return { exists: false, isOwner: false };
-    }
-    
-    const isOwner = result.rows[0].user_id === parseInt(userId);
-    return { 
-        exists: true, 
-        isOwner: isOwner || isAdmin 
-    };
-};
-
-
 
 export default forumController;

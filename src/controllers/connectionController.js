@@ -4,99 +4,131 @@ import notificationService from "../services/notificationService.js";
 
 const connectionController = {
     // ==================== SEND CONNECTION REQUEST ====================
-    sendConnectionRequest: async (req, res) => {
-        try {
-            const senderId = req.user.userId;
-            const { receiver_id, message } = req.body;
 
-            if (!receiver_id) {
-                return res.status(400).json({
-                    success: false,
-                    error: "Receiver ID is required"
-                });
-            }
-
-            // Can't send request to yourself
-            if (senderId === parseInt(receiver_id)) {
-                return res.status(400).json({
-                    success: false,
-                    error: "Cannot send connection request to yourself"
-                });
-            }
-
-            // Check if receiver exists
-            const receiverCheck = await pool.query(
-                "SELECT id FROM users WHERE id = $1 AND is_active = true",
-                [receiver_id]
-            );
-
-            if (receiverCheck.rows.length === 0) {
-                return res.status(404).json({
-                    success: false,
-                    error: "User not found"
-                });
-            }
-
-            // Check if connection already exists
-            const connectionCheck = await pool.query(
-                `SELECT id FROM connections 
-                 WHERE (user1_id = LEAST($1, $2) AND user2_id = GREATEST($1, $2))`,
-                [senderId, receiver_id]
-            );
-
-            if (connectionCheck.rows.length > 0) {
-                return res.status(400).json({
-                    success: false,
-                    error: "Already connected with this user"
-                });
-            }
-
-            // Check if pending request already exists
-            const pendingCheck = await pool.query(
-                `SELECT id, status FROM connection_requests 
-                 WHERE ((sender_id = $1 AND receiver_id = $2) 
-                    OR (sender_id = $2 AND receiver_id = $1))
-                 AND status = 'pending'`,
-                [senderId, receiver_id]
-            );
-
-            if (pendingCheck.rows.length > 0) {
-                return res.status(400).json({
-                    success: false,
-                    error: "Connection request already pending"
-                });
-            }
-
-            // Create connection request
-            const result = await pool.query(
-                `INSERT INTO connection_requests (sender_id, receiver_id, message)
-                 VALUES ($1, $2, $3)
-                 RETURNING *`,
-                [senderId, receiver_id, message || null]
-            );
-
-            // Send notification to receiver
-            await notificationService.notifyConnectionRequest(senderId, receiver_id);
-
-            res.status(201).json({
-                success: true,
-                message: "Connection request sent successfully",
-                data: result.rows[0]
-            });
-
-        } catch (error) {
-            console.error("Send connection request error:", error);
-            res.status(500).json({
+sendConnectionRequest: async (req, res) => {
+    try {
+        // ✅ Validate user is authenticated
+        if (!req.user || !req.user.userId) {
+            return res.status(401).json({
                 success: false,
-                error: "Failed to send connection request"
+                error: "Authentication required"
             });
         }
-    },
 
+        const senderId = parseInt(req.user.userId);
+        
+        if (isNaN(senderId)) {
+            return res.status(400).json({
+                success: false,
+                error: "Invalid user ID"
+            });
+        }
+
+        const { receiver_id, message } = req.body;
+
+        if (!receiver_id) {
+            return res.status(400).json({
+                success: false,
+                error: "Receiver ID is required"
+            });
+        }
+
+        const receiverIdParsed = parseInt(receiver_id);
+        
+        if (isNaN(receiverIdParsed)) {
+            return res.status(400).json({
+                success: false,
+                error: "Invalid receiver ID"
+            });
+        }
+
+        // Can't send request to yourself
+        if (senderId === receiverIdParsed) {
+            return res.status(400).json({
+                success: false,
+                error: "Cannot send connection request to yourself"
+            });
+        }
+
+        // Check if receiver exists
+        const receiverCheck = await pool.query(
+            "SELECT id FROM users WHERE id = $1 AND is_active = true",
+            [receiverIdParsed]
+        );
+
+        if (receiverCheck.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: "User not found"
+            });
+        }
+
+        // Check if connection already exists
+        // ✅ Cast to integer explicitly in the query
+        const connectionCheck = await pool.query(
+            `SELECT id FROM connections 
+             WHERE (user1_id = LEAST($1::integer, $2::integer) 
+             AND user2_id = GREATEST($1::integer, $2::integer))`,
+            [senderId, receiverIdParsed]
+        );
+
+        if (connectionCheck.rows.length > 0) {
+            return res.status(400).json({
+                success: false,
+                error: "Already connected with this user"
+            });
+        }
+
+        // Check if pending request already exists
+        // ✅ Cast to varchar explicitly for status comparison
+        const pendingCheck = await pool.query(
+            `SELECT id, status FROM connection_requests 
+             WHERE ((sender_id = $1 AND receiver_id = $2) 
+                OR (sender_id = $2 AND receiver_id = $1))
+             AND status = $3::varchar`,
+            [senderId, receiverIdParsed, 'pending']
+        );
+
+        if (pendingCheck.rows.length > 0) {
+            return res.status(400).json({
+                success: false,
+                error: "Connection request already pending"
+            });
+        }
+
+        // Create connection request
+        const result = await pool.query(
+            `INSERT INTO connection_requests (sender_id, receiver_id, message)
+             VALUES ($1, $2, $3)
+             RETURNING *`,
+            [senderId, receiverIdParsed, message || null]
+        );
+
+        // Send notification to receiver (don't fail if this errors)
+        try {
+            await notificationService.notifyConnectionRequest(senderId, receiverIdParsed);
+        } catch (notifError) {
+            console.warn('⚠️ Notification failed (non-fatal):', notifError.message);
+        }
+
+        res.status(201).json({
+            success: true,
+            message: "Connection request sent successfully",
+            data: result.rows[0]
+        });
+
+    } catch (error) {
+        console.error("❌ Send connection request error:", error);
+        res.status(500).json({
+            success: false,
+            error: "Failed to send connection request"
+        });
+    }
+},
     // ==================== GET PENDING REQUESTS (RECEIVED) ====================
     getPendingRequests: async (req, res) => {
         try {
-            const userId = req.user.userId;
+            const userId = parseInt(req.user.userId); // ✅ Convert to integer
 
             const result = await pool.query(
                 `SELECT * FROM v_connection_requests
@@ -123,7 +155,7 @@ const connectionController = {
     // ==================== GET SENT REQUESTS ====================
     getSentRequests: async (req, res) => {
         try {
-            const userId = req.user.userId;
+            const userId = parseInt(req.user.userId); // ✅ Convert to integer
 
             const result = await pool.query(
                 `SELECT * FROM v_connection_requests
@@ -150,14 +182,14 @@ const connectionController = {
     // ==================== ACCEPT CONNECTION REQUEST ====================
     acceptConnectionRequest: async (req, res) => {
         try {
-            const userId = req.user.userId;
+            const userId = parseInt(req.user.userId); // ✅ Convert to integer
             const { request_id } = req.params;
 
             // Check if request exists and user is the receiver
             const requestCheck = await pool.query(
                 `SELECT * FROM connection_requests 
                  WHERE id = $1 AND receiver_id = $2 AND status = 'pending'`,
-                [request_id, userId]
+                [parseInt(request_id), userId]
             );
 
             if (requestCheck.rows.length === 0) {
@@ -173,7 +205,7 @@ const connectionController = {
                  SET status = 'accepted'
                  WHERE id = $1
                  RETURNING sender_id`,
-                [request_id]
+                [parseInt(request_id)]
             );
 
             const senderId = result.rows[0].sender_id;
@@ -198,14 +230,14 @@ const connectionController = {
     // ==================== DECLINE CONNECTION REQUEST ====================
     declineConnectionRequest: async (req, res) => {
         try {
-            const userId = req.user.userId;
+            const userId = parseInt(req.user.userId); // ✅ Convert to integer
             const { request_id } = req.params;
 
             // Check if request exists and user is the receiver
             const requestCheck = await pool.query(
                 `SELECT * FROM connection_requests 
                  WHERE id = $1 AND receiver_id = $2 AND status = 'pending'`,
-                [request_id, userId]
+                [parseInt(request_id), userId]
             );
 
             if (requestCheck.rows.length === 0) {
@@ -220,7 +252,7 @@ const connectionController = {
                 `UPDATE connection_requests 
                  SET status = 'declined'
                  WHERE id = $1`,
-                [request_id]
+                [parseInt(request_id)]
             );
 
             res.status(200).json({
@@ -240,14 +272,14 @@ const connectionController = {
     // ==================== CANCEL CONNECTION REQUEST ====================
     cancelConnectionRequest: async (req, res) => {
         try {
-            const userId = req.user.userId;
+            const userId = parseInt(req.user.userId); // ✅ Convert to integer
             const { request_id } = req.params;
 
             // Check if request exists and user is the sender
             const requestCheck = await pool.query(
                 `SELECT * FROM connection_requests 
                  WHERE id = $1 AND sender_id = $2 AND status = 'pending'`,
-                [request_id, userId]
+                [parseInt(request_id), userId]
             );
 
             if (requestCheck.rows.length === 0) {
@@ -262,7 +294,7 @@ const connectionController = {
                 `UPDATE connection_requests 
                  SET status = 'cancelled'
                  WHERE id = $1`,
-                [request_id]
+                [parseInt(request_id)]
             );
 
             res.status(200).json({
@@ -282,7 +314,7 @@ const connectionController = {
     // ==================== GET MY CONNECTIONS ====================
     getMyConnections: async (req, res) => {
         try {
-            const userId = req.user.userId;
+            const userId = parseInt(req.user.userId); // ✅ Convert to integer
             const { page = 1, limit = 20, search } = req.query;
             const offset = (page - 1) * limit;
 
@@ -327,7 +359,9 @@ const connectionController = {
                         email: isUser1 ? conn.user2_email : conn.user1_email,
                         profile_picture: isUser1 ? conn.user2_picture : conn.user1_picture,
                         company: isUser1 ? conn.user2_company : conn.user1_company,
-                        title: isUser1 ? conn.user2_title : conn.user1_title
+                        title: isUser1 ? conn.user2_title : conn.user1_title,
+                        graduation_year: isUser1 ? conn.user2_graduation_year : conn.user1_graduation_year,
+                        program_of_study: isUser1 ? conn.user2_program : conn.user1_program
                     }
                 };
             });
@@ -356,14 +390,14 @@ const connectionController = {
     // ==================== REMOVE CONNECTION ====================
     removeConnection: async (req, res) => {
         try {
-            const userId = req.user.userId;
+            const userId = parseInt(req.user.userId); // ✅ Convert to integer
             const { connection_id } = req.params;
 
             // Check if connection exists and user is part of it
             const connectionCheck = await pool.query(
                 `SELECT * FROM connections 
                  WHERE id = $1 AND (user1_id = $2 OR user2_id = $2)`,
-                [connection_id, userId]
+                [parseInt(connection_id), userId]
             );
 
             if (connectionCheck.rows.length === 0) {
@@ -376,7 +410,7 @@ const connectionController = {
             // Delete connection
             await pool.query(
                 "DELETE FROM connections WHERE id = $1",
-                [connection_id]
+                [parseInt(connection_id)]
             );
 
             res.status(200).json({
@@ -396,14 +430,14 @@ const connectionController = {
     // ==================== CHECK CONNECTION STATUS ====================
     checkConnectionStatus: async (req, res) => {
         try {
-            const userId = req.user.userId;
+            const userId = parseInt(req.user.userId); // ✅ Convert to integer
             const { user_id } = req.params;
 
             // Check if connected
             const connectionCheck = await pool.query(
                 `SELECT id FROM connections 
                  WHERE (user1_id = LEAST($1, $2) AND user2_id = GREATEST($1, $2))`,
-                [userId, user_id]
+                [userId, parseInt(user_id)]
             );
 
             if (connectionCheck.rows.length > 0) {
@@ -420,7 +454,7 @@ const connectionController = {
                  WHERE ((sender_id = $1 AND receiver_id = $2) 
                     OR (sender_id = $2 AND receiver_id = $1))
                  AND status = 'pending'`,
-                [userId, user_id]
+                [userId, parseInt(user_id)]
             );
 
             if (requestCheck.rows.length > 0) {
@@ -451,7 +485,7 @@ const connectionController = {
     // ==================== GET CONNECTION STATS ====================
     getConnectionStats: async (req, res) => {
         try {
-            const userId = req.user.userId;
+            const userId = parseInt(req.user.userId); // ✅ Convert to integer
 
             const stats = await pool.query(
                 `SELECT 

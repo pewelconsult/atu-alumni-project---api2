@@ -43,8 +43,10 @@ export const verifyToken = async (req, res, next) => {
         }
 
         // Attach user info to request
+        // ✅ Set both id and userId for compatibility
         req.user = {
             id: user.id,
+            userId: user.id, // ✅ Added this for consistency
             email: user.email,
             role: user.role,
             is_verified: user.is_verified
@@ -131,11 +133,14 @@ export const optionalAuth = async (req, res, next) => {
         );
 
         if (userResult.rows.length > 0 && userResult.rows[0].is_active) {
+            const user = userResult.rows[0];
+            // ✅ Set both id and userId for compatibility
             req.user = {
-                id: userResult.rows[0].id,
-                email: userResult.rows[0].email,
-                role: userResult.rows[0].role,
-                is_verified: userResult.rows[0].is_verified
+                id: user.id,
+                userId: user.id, // ✅ Added this for consistency
+                email: user.email,
+                role: user.role,
+                is_verified: user.is_verified
             };
         } else {
             req.user = null;

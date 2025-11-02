@@ -102,6 +102,8 @@ const jobController = {
         }
     },
 
+    
+
     // Get all jobs with filters
     getAllJobs: async (req, res) => {
         try {
@@ -692,161 +694,165 @@ const jobController = {
 
     // Save job
     saveJob: async (req, res) => {
-        try {
-            const { id } = req.params;
-            const { user_id } = req.body;
+    try {
+        const { id } = req.params;
+        const userId = req.user.id; // Use authenticated user
 
-            if (!user_id) {
-                return res.status(400).json({
-                    success: false,
-                    error: "User ID is required"
-                });
-            }
+        // Check if job exists
+        const jobCheck = await pool.query(
+            "SELECT id FROM jobs WHERE id = $1 AND is_active = true",
+            [id]
+        );
 
-            // Check if job exists
-            const jobCheck = await pool.query(
-                "SELECT id FROM jobs WHERE id = $1 AND is_active = true",
-                [id]
-            );
-
-            if (jobCheck.rows.length === 0) {
-                return res.status(404).json({
-                    success: false,
-                    error: "Job not found"
-                });
-            }
-
-            // Check if already saved
-            const existingSave = await pool.query(
-                "SELECT id FROM saved_jobs WHERE job_id = $1 AND user_id = $2",
-                [id, user_id]
-            );
-
-            if (existingSave.rows.length > 0) {
-                return res.status(409).json({
-                    success: false,
-                    error: "Job already saved"
-                });
-            }
-
-            // Save job
-            const result = await pool.query(
-                "INSERT INTO saved_jobs (job_id, user_id) VALUES ($1, $2) RETURNING *",
-                [id, user_id]
-            );
-
-            res.status(201).json({
-                success: true,
-                message: "Job saved successfully",
-                data: result.rows[0]
-            });
-
-        } catch (error) {
-            console.error("Save job error:", error);
-            res.status(500).json({
+        if (jobCheck.rows.length === 0) {
+            return res.status(404).json({
                 success: false,
-                error: "Failed to save job"
+                error: "Job not found"
             });
         }
-    },
 
-    // Unsave job
-    unsaveJob: async (req, res) => {
-        try {
-            const { id } = req.params;
-            const { user_id } = req.query;
+        // Check if already saved
+        const existingSave = await pool.query(
+            "SELECT id FROM saved_jobs WHERE job_id = $1 AND user_id = $2",
+            [id, userId]
+        );
 
-            if (!user_id) {
-                return res.status(400).json({
-                    success: false,
-                    error: "User ID is required"
-                });
-            }
-
-            const result = await pool.query(
-                "DELETE FROM saved_jobs WHERE job_id = $1 AND user_id = $2 RETURNING *",
-                [id, user_id]
-            );
-
-            if (result.rows.length === 0) {
-                return res.status(404).json({
-                    success: false,
-                    error: "Saved job not found"
-                });
-            }
-
-            res.status(200).json({
-                success: true,
-                message: "Job unsaved successfully"
-            });
-
-        } catch (error) {
-            console.error("Unsave job error:", error);
-            res.status(500).json({
+        if (existingSave.rows.length > 0) {
+            return res.status(409).json({
                 success: false,
-                error: "Failed to unsave job"
+                error: "Job already saved"
             });
         }
-    },
 
-    // Get saved jobs
-    getSavedJobs: async (req, res) => {
-        try {
-            const { user_id } = req.query;
-            const { page = 1, limit = 20 } = req.query;
+        // Save job
+        const result = await pool.query(
+            "INSERT INTO saved_jobs (job_id, user_id) VALUES ($1, $2) RETURNING *",
+            [id, userId]
+        );
 
-            if (!user_id) {
-                return res.status(400).json({
-                    success: false,
-                    error: "User ID is required"
-                });
-            }
+        res.status(201).json({
+            success: true,
+            message: "Job saved successfully",
+            data: result.rows[0]
+        });
 
-            const queryText = `
-                SELECT 
-                    sj.id as saved_id,
-                    sj.saved_at,
-                    j.*
-                FROM saved_jobs sj
-                JOIN jobs j ON sj.job_id = j.id
-                WHERE sj.user_id = $1 AND j.is_active = true
-            `;
+    } catch (error) {
+        console.error("Save job error:", error);
+        res.status(500).json({
+            success: false,
+            error: "Failed to save job"
+        });
+    }
+},
+   
+unsaveJob: async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user.id;
 
-            // Get total count
-            const countResult = await pool.query(
-                `SELECT COUNT(*) FROM saved_jobs sj
-                 JOIN jobs j ON sj.job_id = j.id
-                 WHERE sj.user_id = $1 AND j.is_active = true`,
-                [user_id]
-            );
-            const totalSaved = parseInt(countResult.rows[0].count);
+        const result = await pool.query(
+            "DELETE FROM saved_jobs WHERE job_id = $1 AND user_id = $2 RETURNING *",
+            [id, userId]
+        );
 
-            // Add pagination
-            const offset = (page - 1) * limit;
-            const paginatedQuery = `${queryText} ORDER BY sj.saved_at DESC LIMIT $2 OFFSET $3`;
-            const result = await pool.query(paginatedQuery, [user_id, limit, offset]);
-
-            res.status(200).json({
-                success: true,
-                count: result.rows.length,
-                total: totalSaved,
-                pagination: {
-                    page: parseInt(page),
-                    limit: parseInt(limit),
-                    total_pages: Math.ceil(totalSaved / limit)
-                },
-                data: result.rows
-            });
-
-        } catch (error) {
-            console.error("Get saved jobs error:", error);
-            res.status(500).json({
+        if (result.rows.length === 0) {
+            return res.status(404).json({
                 success: false,
-                error: "Failed to fetch saved jobs"
+                error: "Saved job not found"
             });
         }
-    },
 
+        res.status(200).json({
+            success: true,
+            message: "Job unsaved successfully"
+        });
+
+    } catch (error) {
+        console.error("Unsave job error:", error);
+        res.status(500).json({
+            success: false,
+            error: "Failed to unsave job"
+        });
+    }
+},
+
+
+getSavedJobIds: async (req, res) => {
+    try {
+        const userId = req.user.id; // From JWT token
+
+        const result = await pool.query(
+            `SELECT job_id FROM saved_jobs WHERE user_id = $1`,
+            [userId]
+        );
+
+        const jobIds = result.rows.map(row => row.job_id);
+
+        res.status(200).json({
+            success: true,
+            data: jobIds
+        });
+
+    } catch (error) {
+        console.error("Get saved job IDs error:", error);
+        res.status(500).json({
+            success: false,
+            error: "Failed to fetch saved job IDs"
+        });
+    }
+},
+    // Get saved jobs - FIXED
+getSavedJobs: async (req, res) => {
+    try {
+        const userId = req.user.id; // Use authenticated user
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const offset = (page - 1) * limit;
+
+        // Get total count
+        const countResult = await pool.query(
+            `SELECT COUNT(*) 
+             FROM saved_jobs sj
+             JOIN jobs j ON sj.job_id = j.id
+             WHERE sj.user_id = $1 AND j.is_active = true`,
+            [userId]
+        );
+        const totalSaved = parseInt(countResult.rows[0].count);
+
+        // Get paginated jobs
+        const result = await pool.query(
+            `SELECT 
+                j.*,
+                u.first_name || ' ' || u.last_name as posted_by_name,
+                u.email as posted_by_email
+             FROM saved_jobs sj
+             JOIN jobs j ON sj.job_id = j.id
+             LEFT JOIN users u ON j.posted_by = u.id
+             WHERE sj.user_id = $1 AND j.is_active = true
+             ORDER BY sj.saved_at DESC
+             LIMIT $2 OFFSET $3`,
+            [userId, limit, offset]
+        );
+
+        res.status(200).json({
+            success: true,
+            total: totalSaved,
+            data: result.rows, // Clean Job objects only
+            pagination: {
+                page,
+                limit,
+                total_pages: Math.ceil(totalSaved / limit)
+            }
+        });
+
+    } catch (error) {
+        console.error("Get saved jobs error:", error);
+        res.status(500).json({
+            success: false,
+            error: "Failed to fetch saved jobs"
+        });
+    }
+},
     // Get job statistics
     getJobStats: async (req, res) => {
         try {
@@ -965,5 +971,32 @@ const checkJobOwnership = async (jobId, userId, isAdmin) => {
         isOwner: isOwner || isAdmin 
     };
 };
+
+
+// Add to jobController.js
+getAllSavedJobIds: async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        const result = await pool.query(
+            `SELECT job_id FROM saved_jobs WHERE user_id = $1`,
+            [userId]
+        );
+
+        const jobIds = result.rows.map(row => row.job_id);
+
+        res.status(200).json({
+            success: true,
+            data: jobIds
+        });
+
+    } catch (error) {
+        console.error("Get saved job IDs error:", error);
+        res.status(500).json({
+            success: false,
+            error: "Failed to fetch saved job IDs"
+        });
+    }
+}
 
 export default jobController;
