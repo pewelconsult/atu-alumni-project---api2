@@ -948,4 +948,22 @@ const jobController = {
     }
 };
 
+
+const checkJobOwnership = async (jobId, userId, isAdmin) => {
+    const result = await pool.query(
+        "SELECT posted_by FROM jobs WHERE id = $1",
+        [jobId]
+    );
+    
+    if (result.rows.length === 0) {
+        return { exists: false, isOwner: false };
+    }
+    
+    const isOwner = result.rows[0].posted_by === parseInt(userId);
+    return { 
+        exists: true, 
+        isOwner: isOwner || isAdmin 
+    };
+};
+
 export default jobController;

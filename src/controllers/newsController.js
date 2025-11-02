@@ -1091,4 +1091,22 @@ getArticleBySlug: async (req, res) => {
     }
 };
 
+
+const checkCommentOwnership = async (commentId, userId, isAdmin) => {
+    const result = await pool.query(
+        "SELECT user_id FROM news_comments WHERE id = $1",
+        [commentId]
+    );
+    
+    if (result.rows.length === 0) {
+        return { exists: false, isOwner: false };
+    }
+    
+    const isOwner = result.rows[0].user_id === parseInt(userId);
+    return { 
+        exists: true, 
+        isOwner: isOwner || isAdmin 
+    };
+}
+
 export default newsController;

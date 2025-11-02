@@ -1602,4 +1602,44 @@ const forumController = {
     }
 };
 
+
+
+// Helper function to check post ownership
+const checkPostOwnership = async (postId, userId, isAdmin) => {
+    const result = await pool.query(
+        "SELECT user_id FROM forum_posts WHERE id = $1",
+        [postId]
+    );
+    
+    if (result.rows.length === 0) {
+        return { exists: false, isOwner: false };
+    }
+    
+    const isOwner = result.rows[0].user_id === parseInt(userId);
+    return { 
+        exists: true, 
+        isOwner: isOwner || isAdmin 
+    };
+};
+
+// Helper function to check reply ownership
+const checkReplyOwnership = async (replyId, userId, isAdmin) => {
+    const result = await pool.query(
+        "SELECT user_id FROM forum_replies WHERE id = $1",
+        [replyId]
+    );
+    
+    if (result.rows.length === 0) {
+        return { exists: false, isOwner: false };
+    }
+    
+    const isOwner = result.rows[0].user_id === parseInt(userId);
+    return { 
+        exists: true, 
+        isOwner: isOwner || isAdmin 
+    };
+};
+
+
+
 export default forumController;

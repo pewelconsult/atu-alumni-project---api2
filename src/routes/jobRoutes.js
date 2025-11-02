@@ -1,27 +1,28 @@
 // src/routes/jobRoutes.js
 import express from "express";
 import jobController from "../controllers/jobController.js";
+import { verifyToken, isAdmin, optionalAuth } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-// Public/Alumni routes
-router.get("/", jobController.getAllJobs);
+// Public/Alumni routes (can browse without login)
+router.get("/", optionalAuth, jobController.getAllJobs);
 router.get("/stats", jobController.getJobStats);
-router.get("/my-applications", jobController.getMyApplications);
-router.get("/saved", jobController.getSavedJobs);
-router.get("/:id", jobController.getJobById);
+router.get("/:id", optionalAuth, jobController.getJobById);
+router.post("/:id/view", optionalAuth, jobController.incrementViewCount);
 
-// Job actions
-router.post("/:id/view", jobController.incrementViewCount);
-router.post("/:id/apply", jobController.applyToJob);
-router.post("/:id/save", jobController.saveJob);
-router.delete("/:id/unsave", jobController.unsaveJob);
+// Protected routes (authentication required)
+router.get("/my-applications", verifyToken, jobController.getMyApplications);
+router.get("/saved", verifyToken, jobController.getSavedJobs);
+router.post("/:id/apply", verifyToken, jobController.applyToJob);
+router.post("/:id/save", verifyToken, jobController.saveJob);
+router.delete("/:id/unsave", verifyToken, jobController.unsaveJob);
 
-// Admin routes
-router.post("/", jobController.createJob);
-router.put("/:id", jobController.updateJob);
-router.delete("/:id", jobController.deleteJob);
-router.get("/:id/applications", jobController.getJobApplications);
-router.put("/:id/applications/:appId", jobController.updateApplicationStatus);
+// Admin only routes
+router.post("/", verifyToken, isAdmin, jobController.createJob); // ✅ Admin only
+router.put("/:id", verifyToken, isAdmin, jobController.updateJob); // ✅ Admin only
+router.delete("/:id", verifyToken, isAdmin, jobController.deleteJob); // ✅ Admin only
+router.get("/:id/applications", verifyToken, isAdmin, jobController.getJobApplications); // ✅ Admin only
+router.put("/:id/applications/:appId", verifyToken, isAdmin, jobController.updateApplicationStatus); // ✅ Admin only
 
 export default router;

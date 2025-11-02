@@ -1432,4 +1432,22 @@ const eventController = {
     }
 };
 
+
+const checkEventOwnership = async (eventId, userId, isAdmin) => {
+    const result = await pool.query(
+        "SELECT created_by FROM events WHERE id = $1",
+        [eventId]
+    );
+    
+    if (result.rows.length === 0) {
+        return { exists: false, isOwner: false };
+    }
+    
+    const isOwner = result.rows[0].created_by === parseInt(userId);
+    return { 
+        exists: true, 
+        isOwner: isOwner || isAdmin 
+    };
+};
+
 export default eventController;

@@ -1,28 +1,21 @@
 // src/routes/userRoutes.js
 import express from "express";
 import userController from "../controllers/userController.js";
+import { verifyToken, isAdmin, optionalAuth } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-// @route   GET /api/users
-router.get("/", userController.getAllUsers);
-
-// @route   GET /api/users/stats/overview
+// Public routes (no authentication required, but can be enhanced with optional auth)
+router.get("/", optionalAuth, userController.getAllUsers);
 router.get("/stats/overview", userController.getUserStats);
+router.get("/:id", optionalAuth, userController.getUserById);
 
-// @route   GET /api/users/:id
-router.get("/:id", userController.getUserById);
+// Protected routes (authentication required - user can only update themselves)
+router.put("/:id", verifyToken, userController.updateUser); // User updates their own profile
+router.patch("/:id/password", verifyToken, userController.updatePassword); // User changes their own password
 
-// @route   PUT /api/users/:id
-router.put("/:id", userController.updateUser);
-
-// @route   PATCH /api/users/:id/password
-router.patch("/:id/password", userController.updatePassword);
-
-// @route   DELETE /api/users/:id
-router.delete("/:id", userController.deleteUser);
-
-// @route   POST /api/users/:id/reactivate
-router.post("/:id/reactivate", userController.reactivateUser);
+// Admin only routes
+router.delete("/:id", verifyToken, isAdmin, userController.deleteUser);
+router.post("/:id/reactivate", verifyToken, isAdmin, userController.reactivateUser);
 
 export default router;
