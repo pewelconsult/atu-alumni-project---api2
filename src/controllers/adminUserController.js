@@ -231,6 +231,61 @@ const adminUserController = {
         }
     },
 
+    // Delete user
+    // Hard delete user (for testing only)
+deleteUser: async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // Actually delete from database
+        const result = await pool.query(
+            "DELETE FROM users WHERE id = $1 RETURNING id",
+            [id]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                error: "User not found"
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "User deleted permanently"
+        });
+    } catch (error) {
+        console.error("Delete user error:", error);
+        res.status(500).json({
+            success: false,
+            error: "Failed to delete user"
+        });
+    }
+},
+
+// Reactivate user
+reactivateUser: async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        await pool.query(
+            "UPDATE users SET is_active = true WHERE id = $1",
+            [id]
+        );
+
+        res.status(200).json({
+            success: true,
+            message: "User reactivated successfully"
+        });
+    } catch (error) {
+        console.error("Reactivate user error:", error);
+        res.status(500).json({
+            success: false,
+            error: "Failed to reactivate user"
+        });
+    }
+},
+    
     // ==================== RESEND CREDENTIALS ====================
     resendCredentials: async (req, res) => {
         try {

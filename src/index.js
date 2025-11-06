@@ -4,6 +4,9 @@ import cors from "cors";
 import dotenv from "dotenv";
 import helmet from "helmet";
 import pool from "./config/db.js";
+import path from "path";
+import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 // Import routes
 import authRoutes from "./routes/authRoutes.js";
@@ -17,7 +20,8 @@ import academicRoutes from "./routes/academicRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 import connectionRoutes from "./routes/connectionRoutes.js";
 import adminUserRoutes from "./routes/adminUserRoutes.js";
-
+import notificationRoutes from './routes/notificationRoutes.js';
+import uploadRoutes from "./routes/uploadRoutes.js";
 
 // Import middlewares
 import { apiLimiter } from "./middlewares/rateLimitMiddleware.js";
@@ -28,14 +32,31 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 8080;
 
-// Security middlewares
-app.use(helmet()); // Security headers
-app.use(cors()); // CORS
-app.use(express.json({ limit: '10mb' })); // Body parser with size limit
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ================== MIDDLEWARE CONFIGURATION ==================
+
+// 1. Security headers
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+// 2. CORS
+app.use(cors({
+    origin: ['http://localhost:4200', 'http://localhost:3000'],
+    credentials: true
+}));
+
+// 3. Body parsers
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Rate limiting for all routes
+// 4. Rate limiting for API routes
 app.use('/api/', apiLimiter);
+
+// ================== ROUTES ==================
 
 // Root route
 app.get("/", async (req, res) => {
@@ -56,7 +77,11 @@ app.get("/", async (req, res) => {
                 news: "/api/news",
                 tracerStudy: "/api/tracer-study",
                 academic: "/api/academic",
-                messages: "/api/messages"
+                messages: "/api/messages",
+                notifications: "/api/notifications",
+                connections: "/api/connections",
+                upload: "/api/upload",
+                uploads: "/api/uploads"
             }
         });
     } catch (error) {
@@ -68,21 +93,8 @@ app.get("/", async (req, res) => {
     }
 });
 
-// API Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/users", userRoutes);
-app.use("/api/jobs", jobRoutes);
-app.use("/api/events", eventRoutes);
-app.use("/api/forums", forumRoutes);
-app.use("/api/news", newsRoutes);
-app.use("/api/tracer-study", tracerStudyRoutes);
-app.use("/api/academic", academicRoutes);
-app.use("/api/messages", messageRoutes);
-app.use("/api/connections", connectionRoutes);
-app.use("/api/admin/users", adminUserRoutes);
-
-// Health check endpoint
-app.get("/health", async (req, res) => {
+// Health check
+app.get("/api/health", async (req, res) => {
     try {
         await pool.query("SELECT 1");
         res.json({
@@ -101,13 +113,83 @@ app.get("/health", async (req, res) => {
     }
 });
 
-// 404 handler
+// Test endpoint to list uploaded files
+app.get("/api/test/images", (req, res) => {
+    try {
+        const profilesDir = path.join(__dirname, '../public/uploads/profiles');
+        
+        if (!fs.existsSync(profilesDir)) {
+            return res.status(404).json({
+                success: false,
+                error: "Upload directory not found",
+                path: profilesDir
+            });
+        }
+        
+        const files = fs.readdirSync(profilesDir);
+        
+        res.json({
+            success: true,
+            directory: profilesDir,
+            count: files.length,
+            files: files,
+            urls: files.map(f => `http://localhost:${port}/api/uploads/profiles/${f}`)
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ================== API ROUTES ==================
+
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/jobs", jobRoutes);
+app.use("/api/events", eventRoutes);
+app.use("/api/forums", forumRoutes);
+app.use("/api/news", newsRoutes);
+app.use("/api/tracer-study", tracerStudyRoutes);
+app.use("/api/academic", academicRoutes);
+app.use("/api/messages", messageRoutes);
+app.use("/api/connections", connectionRoutes);
+app.use("/api/admin/users", adminUserRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use("/api/upload", uploadRoutes);
+
+// ================== STATIC FILES ==================
+
+// Serve static files at /api/uploads (consistent with /api prefix)
+const uploadsPath = path.join(__dirname, '../public/uploads');
+console.log('📁 Serving static files from:', uploadsPath);
+
+app.use('/api/uploads', express.static(uploadsPath, {
+    setHeaders: (res, filePath) => {
+        // Set proper MIME types
+        if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
+            res.setHeader('Content-Type', 'image/jpeg');
+        } else if (filePath.endsWith('.png')) {
+            res.setHeader('Content-Type', 'image/png');
+        } else if (filePath.endsWith('.gif')) {
+            res.setHeader('Content-Type', 'image/gif');
+        } else if (filePath.endsWith('.webp')) {
+            res.setHeader('Content-Type', 'image/webp');
+        }
+    }
+}));
+
+// ================== ERROR HANDLERS ==================
+
+// 404 handler (must be after all routes)
 app.use(notFound);
 
-// Global error handler
+// Global error handler (must be last)
 app.use(errorHandler);
 
-// Start server
+// ================== START SERVER ==================
+
 app.listen(port, () => {
     console.log(`
 ╔════════════════════════════════════════╗
@@ -128,14 +210,17 @@ app.listen(port, () => {
    - Tracer Study:  /api/tracer-study
    - Academic:      /api/academic
    - Messages:      /api/messages
+   - Notifications: /api/notifications
+   - Connections:   /api/connections
+   - Upload:        /api/upload
 
-🔍 Health Check:    /health
+🖼️  Static Files:    /api/uploads
+🔍 Health Check:    /api/health
+📊 Test Images:     /api/test/images
     `);
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
     console.error('Unhandled Promise Rejection:', err);
-    // In production, you might want to close the server
-    // server.close(() => process.exit(1));
 });

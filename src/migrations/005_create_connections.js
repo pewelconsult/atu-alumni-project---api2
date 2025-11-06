@@ -1,0 +1,224 @@
+// database/migrations/005_create_connections.js
+import pool from "../../src/config/db.js";
+
+const createConnectionsTables = async () => {
+    console.log("\n🔄 Starting connections migration...\n");
+
+    try {
+        // Begin transaction
+        await pool.query("BEGIN");
+
+        // Create connection_requests table
+        console.log("📋 Creating connection_requests table...");
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS connection_requests (
+                id SERIAL PRIMARY KEY,
+                
+                -- Users involved
+                sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                receiver_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                
+                -- Request status
+                status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined', 'cancelled')),
+                
+                -- Optional message
+                message TEXT,
+                
+                -- Timestamps
+                requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                responded_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                
+                -- Constraints
+                UNIQUE(sender_id, receiver_id),
+                CHECK (sender_id != receiver_id)
+            );
+        `);
+        console.log("✅ connection_requests table created!");
+
+        // Create connections table
+        console.log("📋 Creating connections table...");
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS connections (
+                id SERIAL PRIMARY KEY,
+                
+                -- Connected users (always store smaller ID first)
+                user1_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                user2_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                
+                -- Connection metadata
+                connection_request_id INTEGER REFERENCES connection_requests(id) ON DELETE SET NULL,
+                
+                -- Timestamps
+                connected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                
+                -- Constraints
+                UNIQUE(user1_id, user2_id),
+                CHECK (user1_id < user2_id)
+            );
+        `);
+        console.log("✅ connections table created!");
+
+        // Create indexes
+        console.log("📋 Creating indexes...");
+        await pool.query(`
+            CREATE INDEX IF NOT EXISTS idx_connection_requests_sender ON connection_requests(sender_id);
+            CREATE INDEX IF NOT EXISTS idx_connection_requests_receiver ON connection_requests(receiver_id);
+            CREATE INDEX IF NOT EXISTS idx_connection_requests_status ON connection_requests(status);
+            CREATE INDEX IF NOT EXISTS idx_connection_requests_requested_at ON connection_requests(requested_at);
+            
+            CREATE INDEX IF NOT EXISTS idx_connections_user1 ON connections(user1_id);
+            CREATE INDEX IF NOT EXISTS idx_connections_user2 ON connections(user2_id);
+            CREATE INDEX IF NOT EXISTS idx_connections_connected_at ON connections(connected_at);
+        `);
+        console.log("✅ Indexes created!");
+
+        // Create trigger for updated_at
+        console.log("📋 Creating triggers...");
+        await pool.query(`
+            DROP TRIGGER IF EXISTS update_connection_requests_updated_at ON connection_requests;
+            CREATE TRIGGER update_connection_requests_updated_at
+                BEFORE UPDATE ON connection_requests
+                FOR EACH ROW
+                EXECUTE FUNCTION update_updated_at_column();
+        `);
+
+        // Create function to auto-create connection when request is accepted
+        await pool.query(`
+            CREATE OR REPLACE FUNCTION create_connection_on_accept()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                IF NEW.status = 'accepted' AND OLD.status != 'accepted' THEN
+                    NEW.responded_at = CURRENT_TIMESTAMP;
+                    
+                    INSERT INTO connections (user1_id, user2_id, connection_request_id)
+                    VALUES (
+                        LEAST(NEW.sender_id, NEW.receiver_id),
+                        GREATEST(NEW.sender_id, NEW.receiver_id),
+                        NEW.id
+                    )
+                    ON CONFLICT (user1_id, user2_id) DO NOTHING;
+                ELSIF NEW.status IN ('declined', 'cancelled') AND OLD.status != NEW.status THEN
+                    NEW.responded_at = CURRENT_TIMESTAMP;
+                END IF;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+
+            DROP TRIGGER IF EXISTS trigger_create_connection_on_accept ON connection_requests;
+            CREATE TRIGGER trigger_create_connection_on_accept
+                BEFORE UPDATE ON connection_requests
+                FOR EACH ROW
+                EXECUTE FUNCTION create_connection_on_accept();
+        `);
+
+        // Create function to delete connection when request is cancelled
+        await pool.query(`
+            CREATE OR REPLACE FUNCTION delete_connection_on_cancel()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                IF NEW.status IN ('cancelled', 'declined') THEN
+                    DELETE FROM connections 
+                    WHERE (user1_id = LEAST(NEW.sender_id, NEW.receiver_id) 
+                       AND user2_id = GREATEST(NEW.sender_id, NEW.receiver_id));
+                END IF;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+
+            DROP TRIGGER IF EXISTS trigger_delete_connection_on_cancel ON connection_requests;
+            CREATE TRIGGER trigger_delete_connection_on_cancel
+                AFTER UPDATE ON connection_requests
+                FOR EACH ROW
+                EXECUTE FUNCTION delete_connection_on_cancel();
+        `);
+        console.log("✅ Triggers created!");
+
+        // Create views
+        console.log("📋 Creating views...");
+        await pool.query(`
+            CREATE OR REPLACE VIEW v_user_connections AS
+            SELECT 
+                c.id as connection_id,
+                c.user1_id,
+                c.user2_id,
+                c.connected_at,
+                u1.id as user1_full_id,
+                u1.first_name || ' ' || u1.last_name as user1_name,
+                u1.email as user1_email,
+                u1.profile_picture as user1_picture,
+                u1.current_company as user1_company,
+                u1.job_title as user1_title,
+                u1.graduation_year as user1_graduation_year,
+                u1.program_of_study as user1_program,
+                u2.id as user2_full_id,
+                u2.first_name || ' ' || u2.last_name as user2_name,
+                u2.email as user2_email,
+                u2.profile_picture as user2_picture,
+                u2.current_company as user2_company,
+                u2.job_title as user2_title,
+                u2.graduation_year as user2_graduation_year,
+                u2.program_of_study as user2_program
+            FROM connections c
+            JOIN users u1 ON c.user1_id = u1.id
+            JOIN users u2 ON c.user2_id = u2.id
+            WHERE u1.is_active = TRUE AND u2.is_active = TRUE;
+
+            CREATE OR REPLACE VIEW v_connection_requests AS
+            SELECT 
+                cr.id,
+                cr.sender_id,
+                cr.receiver_id,
+                cr.status,
+                cr.message,
+                cr.requested_at,
+                cr.responded_at,
+                sender.first_name || ' ' || sender.last_name as sender_name,
+                sender.email as sender_email,
+                sender.profile_picture as sender_picture,
+                sender.current_company as sender_company,
+                sender.job_title as sender_title,
+                sender.graduation_year as sender_graduation_year,
+                sender.program_of_study as sender_program,
+                receiver.first_name || ' ' || receiver.last_name as receiver_name,
+                receiver.email as receiver_email,
+                receiver.profile_picture as receiver_picture,
+                receiver.current_company as receiver_company,
+                receiver.job_title as receiver_title
+            FROM connection_requests cr
+            JOIN users sender ON cr.sender_id = sender.id
+            JOIN users receiver ON cr.receiver_id = receiver.id
+            WHERE sender.is_active = TRUE AND receiver.is_active = TRUE;
+        `);
+        console.log("✅ Views created!");
+
+        // Commit transaction
+        await pool.query("COMMIT");
+
+        console.log("\n✅ Connections migration completed successfully!\n");
+        return true;
+
+    } catch (error) {
+        // Rollback on error
+        await pool.query("ROLLBACK");
+        console.error("\n❌ Error during connections migration:", error);
+        throw error;
+    }
+};
+
+// Run migration if called directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+    createConnectionsTables()
+        .then(() => {
+            console.log("✅ Migration successful!");
+            process.exit(0);
+        })
+        .catch((error) => {
+            console.error("❌ Migration failed:", error);
+            process.exit(1);
+        });
+}
+
+export default createConnectionsTables;

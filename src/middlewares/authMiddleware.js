@@ -2,10 +2,9 @@
 import jwt from "jsonwebtoken";
 import pool from "../config/db.js";
 
-// Verify JWT token
+// ==================== VERIFY JWT TOKEN ====================
 export const verifyToken = async (req, res, next) => {
     try {
-        // Get token from header
         const authHeader = req.headers.authorization;
 
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -15,12 +14,9 @@ export const verifyToken = async (req, res, next) => {
             });
         }
 
-        const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-
-        // Verify token
+        const token = authHeader.substring(7);
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // Check if user still exists and is active
         const userResult = await pool.query(
             "SELECT id, email, role, is_active, is_verified FROM users WHERE id = $1",
             [decoded.userId]
@@ -42,11 +38,9 @@ export const verifyToken = async (req, res, next) => {
             });
         }
 
-        // Attach user info to request
-        // ✅ Set both id and userId for compatibility
         req.user = {
             id: user.id,
-            userId: user.id, // ✅ Added this for consistency
+            userId: user.id,
             email: user.email,
             role: user.role,
             is_verified: user.is_verified
@@ -76,7 +70,7 @@ export const verifyToken = async (req, res, next) => {
     }
 };
 
-// Check if user is admin
+// ==================== CHECK IF USER IS ADMIN ====================
 export const isAdmin = (req, res, next) => {
     if (!req.user) {
         return res.status(401).json({
@@ -95,7 +89,7 @@ export const isAdmin = (req, res, next) => {
     next();
 };
 
-// Check if user is verified
+// ==================== CHECK IF USER IS VERIFIED ====================
 export const isVerified = (req, res, next) => {
     if (!req.user) {
         return res.status(401).json({
@@ -114,7 +108,7 @@ export const isVerified = (req, res, next) => {
     next();
 };
 
-// Optional auth - doesn't fail if no token
+// ==================== OPTIONAL AUTH (DOESN'T FAIL IF NO TOKEN) ====================
 export const optionalAuth = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
@@ -134,10 +128,9 @@ export const optionalAuth = async (req, res, next) => {
 
         if (userResult.rows.length > 0 && userResult.rows[0].is_active) {
             const user = userResult.rows[0];
-            // ✅ Set both id and userId for compatibility
             req.user = {
                 id: user.id,
-                userId: user.id, // ✅ Added this for consistency
+                userId: user.id,
                 email: user.email,
                 role: user.role,
                 is_verified: user.is_verified
@@ -150,5 +143,186 @@ export const optionalAuth = async (req, res, next) => {
     } catch (error) {
         req.user = null;
         next();
+    }
+};
+
+// ==================== 🔥 CHECK IF USER OWNS THEIR PROFILE OR IS ADMIN ====================
+/**
+ * Check if user is updating their own profile or is an admin
+ * Used for: Profile updates, password changes
+ * 
+ * @example
+ * router.put("/:id", verifyToken, isOwnerOrAdmin, userController.updateUser);
+ */
+export const isOwnerOrAdmin = (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({
+            success: false,
+            error: "Authentication required"
+        });
+    }
+
+    const resourceUserId = parseInt(req.params.id || req.params.user_id);
+    const currentUserId = parseInt(req.user.id);
+
+    if (currentUserId === resourceUserId || req.user.role === 'admin') {
+        return next();
+    }
+
+    return res.status(403).json({
+        success: false,
+        error: "You don't have permission to perform this action"
+    });
+};
+
+// ==================== 🔥 CHECK RESOURCE OWNERSHIP (FORUM & COMMENTS ONLY) ====================
+/**
+ * Check if user owns a resource (forum post, reply, or comment) OR is admin
+ * ONLY USED FOR: Forum posts, forum replies, event comments, news comments
+ * NOT USED FOR: Events, jobs, news articles (those are admin-only)
+ * 
+ * @param {string} resourceType - 'forum_post', 'forum_reply', 'event_comment', 'news_comment'
+ * @param {string} idParamName - Parameter name containing resource ID (default: 'id')
+ * 
+ * @example
+ * // Forum post (user can edit their own post)
+ * router.put("/posts/:id", verifyToken, checkResourceOwnership('forum_post'), forumController.updatePost);
+ * 
+ * @example
+ * // Event comment (user can edit their own comment)
+ * router.put("/:id/comments/:commentId", verifyToken, checkResourceOwnership('event_comment', 'commentId'), eventController.updateComment);
+ */
+export const checkResourceOwnership = (resourceType, idParamName = 'id') => async (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({
+            success: false,
+            error: "Authentication required"
+        });
+    }
+
+    // Admin can do anything
+    if (req.user.role === 'admin') {
+        return next();
+    }
+
+    const resourceId = req.params[idParamName] || req.params.commentId || req.params.replyId;
+    const userId = parseInt(req.user.id);
+
+    if (!resourceId) {
+        return res.status(400).json({
+            success: false,
+            error: "Resource ID not provided"
+        });
+    }
+
+    // ✅ ONLY these resources can be owned by regular users
+    const resourceQueries = {
+        'forum_post': {
+            query: 'SELECT user_id FROM forum_posts WHERE id = $1',
+            name: 'post'
+        },
+        'forum_reply': {
+            query: 'SELECT user_id FROM forum_replies WHERE id = $1',
+            name: 'reply'
+        },
+        'event_comment': {
+            query: 'SELECT user_id FROM event_comments WHERE id = $1',
+            name: 'comment'
+        },
+        'news_comment': {
+            query: 'SELECT user_id FROM news_comments WHERE id = $1',
+            name: 'comment'
+        },
+        'tracer_study': {
+            query: 'SELECT user_id FROM tracer_study_responses WHERE id = $1',
+            name: 'response'
+        }
+    };
+
+    const resourceConfig = resourceQueries[resourceType];
+
+    if (!resourceConfig) {
+        console.error(`Invalid resource type: ${resourceType}`);
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid resource type'
+        });
+    }
+
+    try {
+        const result = await pool.query(resourceConfig.query, [resourceId]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: `${resourceConfig.name.charAt(0).toUpperCase() + resourceConfig.name.slice(1)} not found`
+            });
+        }
+
+        const ownerId = parseInt(result.rows[0].user_id);
+
+        if (ownerId === userId) {
+            return next();
+        }
+
+        return res.status(403).json({
+            success: false,
+            error: `You don't have permission to modify this ${resourceConfig.name}`
+        });
+    } catch (error) {
+        console.error(`Resource ownership check error for ${resourceType}:`, error);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to verify ownership'
+        });
+    }
+};
+
+// ==================== 🔥 CHECK POST AUTHOR (FOR MARKING SOLUTIONS) ====================
+/**
+ * Check if user is the original post author
+ * Used only for marking forum replies as solutions
+ * 
+ * @example
+ * router.post("/:id/replies/:replyId/solution", verifyToken, isPostAuthor, forumController.markAsSolution);
+ */
+export const isPostAuthor = async (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({
+            success: false,
+            error: "Authentication required"
+        });
+    }
+
+    const postId = req.params.id;
+    const userId = parseInt(req.user.id);
+
+    try {
+        const result = await pool.query(
+            'SELECT user_id FROM forum_posts WHERE id = $1',
+            [postId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Post not found'
+            });
+        }
+
+        if (result.rows[0].user_id === userId || req.user.role === 'admin') {
+            return next();
+        }
+
+        return res.status(403).json({
+            success: false,
+            error: "Only the post author can mark solutions"
+        });
+    } catch (error) {
+        console.error('Post author check error:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to verify post ownership'
+        });
     }
 };

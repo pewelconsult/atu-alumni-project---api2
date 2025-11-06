@@ -1093,7 +1093,42 @@ const messageController = {
                 error: "Failed to fetch statistics"
             });
         }
+    },
+
+    
+    getUnreadMessageCount: async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        const result = await pool.query(
+            `SELECT COUNT(DISTINCT m.conversation_id) as unread_conversations
+             FROM messages m
+             JOIN conversations c ON m.conversation_id = c.id
+             WHERE (c.user1_id = $1 OR c.user2_id = $1)
+             AND m.sender_id != $1
+             AND m.is_read = false`,
+            [userId]
+        );
+
+        res.status(200).json({
+            success: true,
+            data: {
+                unread_count: parseInt(result.rows[0].unread_conversations)
+            }
+        });
+    } catch (error) {
+        console.error('Get unread message count error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get unread message count'
+        });
     }
+}
 };
+
+
+// src/controllers/messageController.js - Add this method
+
+
 
 export default messageController;

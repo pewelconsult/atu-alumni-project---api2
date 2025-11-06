@@ -37,5 +37,7 @@ router.get("/conversations/:conversation_id/typing", messageController.getTyping
 
 // ==================== STATISTICS ====================
 router.get("/stats", messageController.getMessagingStats);
+router.get("/unread-count", messageController.getUnreadMessageCount);
+
 
 export default router;

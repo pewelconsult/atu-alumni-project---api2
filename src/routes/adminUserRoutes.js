@@ -17,4 +17,8 @@ router.post("/add-alumni", adminUserController.addSingleAlumni);
 // Resend credentials to specific user
 router.post("/resend-credentials/:user_id", adminUserController.resendCredentials);
 
+// Add these routes
+router.delete('/:id', adminUserController.deleteUser);
+router.post('/:id/reactivate', adminUserController.reactivateUser);
+
 export default router;

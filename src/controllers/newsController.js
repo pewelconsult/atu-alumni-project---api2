@@ -5,7 +5,6 @@ const newsController = {
     // ==================== ARTICLES ====================
 
     // Get all news articles with filters
-    // Get all news articles with filters
 getAllArticles: async (req, res) => {
     try {
         const {
@@ -341,77 +340,180 @@ getArticleBySlug: async (req, res) => {
 
 
     // Create article (Admin)
-    createArticle: async (req, res) => {
-        try {
-            const {
+    // FIXED createArticle function
+// Replace your existing createArticle in newsController.js with this:
+
+createArticle: async (req, res) => {
+    try {
+        const {
+            author_id,
+            title,
+            slug,
+            excerpt,
+            content,
+            featured_image,
+            category,
+            tags,
+            meta_description,    // ← NOW INCLUDED
+            keywords,            // ← NOW INCLUDED
+            is_featured,
+            is_published
+        } = req.body;
+
+        // Required fields validation
+        if (!author_id || !title || !slug || !excerpt || !content || !category) {
+            return res.status(400).json({
+                success: false,
+                error: "Author ID, title, slug, excerpt, content, and category are required"
+            });
+        }
+
+        // Length validations
+        if (title.length > 255) {
+            return res.status(400).json({
+                success: false,
+                error: "Title must be less than 255 characters"
+            });
+        }
+
+        if (slug.length > 255) {
+            return res.status(400).json({
+                success: false,
+                error: "Slug must be less than 255 characters"
+            });
+        }
+
+        if (excerpt.length < 10) {
+            return res.status(400).json({
+                success: false,
+                error: "Excerpt must be at least 10 characters"
+            });
+        }
+
+        if (excerpt.length > 1000) {
+            return res.status(400).json({
+                success: false,
+                error: "Excerpt must be less than 1000 characters"
+            });
+        }
+
+        if (content.length < 50) {
+            return res.status(400).json({
+                success: false,
+                error: "Content must be at least 50 characters"
+            });
+        }
+
+        if (meta_description && meta_description.length > 160) {
+            return res.status(400).json({
+                success: false,
+                error: "Meta description must be less than 160 characters"
+            });
+        }
+
+        if (keywords && keywords.length > 255) {
+            return res.status(400).json({
+                success: false,
+                error: "Keywords must be less than 255 characters"
+            });
+        }
+
+        // Validate featured_image size (if base64)
+        if (featured_image && featured_image.startsWith('data:image')) {
+            // Base64 image - warn if too large
+            if (featured_image.length > 100000) {
+                console.warn('Warning: Featured image is very large (base64). Consider using file upload.');
+                // Don't reject, but log warning
+            }
+        }
+
+        // Validate category
+        const validCategories = ['Academic', 'Career', 'Social', 'Alumni', 'University', 'General'];
+        if (!validCategories.includes(category)) {
+            return res.status(400).json({
+                success: false,
+                error: `Category must be one of: ${validCategories.join(', ')}`
+            });
+        }
+
+        // Check if slug already exists
+        const slugCheck = await pool.query(
+            "SELECT id FROM news_articles WHERE slug = $1",
+            [slug]
+        );
+
+        if (slugCheck.rows.length > 0) {
+            return res.status(409).json({
+                success: false,
+                error: "Article with this slug already exists. Please use a different title."
+            });
+        }
+
+        // Insert article with ALL fields
+        const result = await pool.query(
+            `INSERT INTO news_articles (
+                author_id, title, slug, excerpt, content, featured_image,
+                category, tags, meta_description, keywords,
+                is_featured, is_published
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            RETURNING *`,
+            [
                 author_id,
                 title,
                 slug,
                 excerpt,
                 content,
-                featured_image,
+                featured_image || null,
                 category,
-                tags,
-                is_featured,
-                is_published
-            } = req.body;
+                tags || null,
+                meta_description || null,
+                keywords || null,
+                is_featured || false,
+                is_published !== undefined ? is_published : true
+            ]
+        );
 
-            if (!author_id || !title || !slug || !excerpt || !content || !category) {
-                return res.status(400).json({
-                    success: false,
-                    error: "Author ID, title, slug, excerpt, content, and category are required"
-                });
-            }
+        res.status(201).json({
+            success: true,
+            message: "Article created successfully",
+            data: result.rows[0]
+        });
 
-            // Validate category
-            const validCategories = ['Academic', 'Career', 'Social', 'Alumni', 'University', 'General'];
-            if (!validCategories.includes(category)) {
-                return res.status(400).json({
-                    success: false,
-                    error: `Category must be one of: ${validCategories.join(', ')}`
-                });
-            }
-
-            // Check if slug already exists
-            const slugCheck = await pool.query(
-                "SELECT id FROM news_articles WHERE slug = $1",
-                [slug]
-            );
-
-            if (slugCheck.rows.length > 0) {
-                return res.status(409).json({
-                    success: false,
-                    error: "Article with this slug already exists"
-                });
-            }
-
-            const result = await pool.query(
-                `INSERT INTO news_articles (
-                    author_id, title, slug, excerpt, content, featured_image,
-                    category, tags, is_featured, is_published
-                )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-                RETURNING *`,
-                [
-                    author_id, title, slug, excerpt, content, featured_image || null,
-                    category, tags || null, is_featured || false, is_published !== undefined ? is_published : true
-                ]
-            );
-
-            res.status(201).json({
-                success: true,
-                message: "Article created successfully",
-                data: result.rows[0]
-            });
-
-        } catch (error) {
-            console.error("Create article error:", error);
-            res.status(500).json({
+    } catch (error) {
+        console.error("Create article error:", error);
+        
+        // Handle specific error codes
+        if (error.code === '22001') {
+            // String data right truncation
+            return res.status(400).json({
                 success: false,
-                error: "Failed to create article"
+                error: "One or more fields exceed the maximum allowed length. Please shorten your content."
             });
         }
-    },
+        
+        if (error.code === '23505') {
+            // Unique violation
+            return res.status(409).json({
+                success: false,
+                error: "An article with this slug already exists"
+            });
+        }
+
+        if (error.code === '23503') {
+            // Foreign key violation
+            return res.status(400).json({
+                success: false,
+                error: "Invalid author ID"
+            });
+        }
+        
+        res.status(500).json({
+            success: false,
+            error: "Failed to create article. Please try again."
+        });
+    }
+},
 
     // Update article (Admin)
     updateArticle: async (req, res) => {

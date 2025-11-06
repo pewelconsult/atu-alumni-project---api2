@@ -2,11 +2,13 @@
 import emailService from "./emailService.js";
 import smsService from "./smsService.js";
 import pool from "../config/db.js";
+import { createNotification } from '../controllers/notificationController.js';
+
 
 class NotificationService {
     // ==================== CONNECTION REQUEST NOTIFICATIONS ====================
     
-    async notifyConnectionRequest(senderId, receiverId) {
+        async notifyConnectionRequest(senderId, receiverId) {
         try {
             // Get sender and receiver details
             const result = await pool.query(
@@ -31,10 +33,27 @@ class NotificationService {
 
             const { 
                 sender_first_name, sender_last_name, sender_company, sender_title,
-                receiver_first_name, receiver_email, receiver_phone 
+                receiver_first_name, receiver_email, receiver_phone, receiver_id 
             } = result.rows[0];
 
-            const frontendUrl = process.env.FRONTEND_URL || 'https://alumni.atu.edu.gh';
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+
+            // ✅ Create in-app notification
+                await createNotification(
+        receiver_id,
+        'connection_request',
+        'New Connection Request',
+        `${sender_first_name} ${sender_last_name} wants to connect with you`,
+        '/networks',
+        { 
+            sender_id: senderId, 
+            sender_name: `${sender_first_name} ${sender_last_name}`,
+            sender_company,
+            sender_title
+        }
+    );
+    
+
 
             // Send Email
             const emailHtml = this.getConnectionRequestEmailTemplate(
@@ -71,6 +90,7 @@ class NotificationService {
                     requester.last_name as requester_last_name,
                     requester.email as requester_email,
                     requester.phone_number as requester_phone,
+                    accepter.id as accepter_id,
                     accepter.first_name as accepter_first_name,
                     accepter.last_name as accepter_last_name
                 FROM users requester, users accepter
@@ -82,10 +102,23 @@ class NotificationService {
 
             const { 
                 requester_first_name, requester_email, requester_phone,
-                accepter_first_name, accepter_last_name 
+                accepter_id, accepter_first_name, accepter_last_name 
             } = result.rows[0];
 
-            const frontendUrl = process.env.FRONTEND_URL || 'https://alumni.atu.edu.gh';
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+
+            // ✅ Create in-app notification
+            await createNotification(
+                requesterId,
+                'connection_accepted',
+                'Connection Accepted',
+                `${accepter_first_name} ${accepter_last_name} accepted your connection request`,
+                `/profile/${accepter_id}`,
+                { 
+                    accepter_id: accepter_id,
+                    accepter_name: `${accepter_first_name} ${accepter_last_name}`
+                }
+            );
 
             // Send Email
             const emailHtml = this.getConnectionAcceptedEmailTemplate(
@@ -112,8 +145,9 @@ class NotificationService {
         }
     }
 
+
+
     // ==================== EVENT NOTIFICATIONS ====================
-    
     async notifyEventRSVP(userId, eventId) {
         try {
             const result = await pool.query(
@@ -128,7 +162,21 @@ class NotificationService {
             if (result.rows.length === 0) return;
 
             const { first_name, email, phone_number, title, start_date, location, event_type } = result.rows[0];
-            const frontendUrl = process.env.FRONTEND_URL || 'https://alumni.atu.edu.gh';
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+
+            // ✅ Create in-app notification
+            await createNotification(
+                userId,
+                'event_rsvp',
+                'Event RSVP Confirmed',
+                `Your RSVP for "${title}" has been confirmed`,
+                `/events/${eventId}`,
+                { 
+                    event_id: eventId,
+                    event_title: title,
+                    event_date: start_date
+                }
+            );
 
             // Send Email
             const emailHtml = this.getEventConfirmationEmailTemplate(
@@ -183,6 +231,22 @@ class NotificationService {
 
             // Send reminders to all attendees
             for (const attendee of attendees) {
+                // ✅ Create in-app notification
+                const timeText = reminderType === 'today' ? 'today' : reminderType === 'tomorrow' ? 'tomorrow' : 'soon';
+                await createNotification(
+                    attendee.id,
+                    'event_reminder',
+                    `Event Reminder: ${event.title}`,
+                    `Reminder: ${event.title} is ${timeText}!`,
+                    `/events/${eventId}`,
+                    { 
+                        event_id: eventId,
+                        event_title: event.title,
+                        event_date: event.start_date,
+                        reminder_type: reminderType
+                    }
+                );
+
                 await this.sendEventReminder(attendee, event, reminderType);
             }
 
@@ -192,7 +256,7 @@ class NotificationService {
     }
 
     async sendEventReminder(user, event, reminderType) {
-        const frontendUrl = process.env.FRONTEND_URL || 'https://alumni.atu.edu.gh';
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
         let subject, emailHtml, smsMessage;
 
         switch (reminderType) {
@@ -227,12 +291,14 @@ class NotificationService {
         }
     }
 
+
     // ==================== JOB NOTIFICATIONS ====================
     
-    async notifyJobApplication(jobId, applicantId) {
+        async notifyJobApplication(jobId, applicantId) {
         try {
             const result = await pool.query(
                 `SELECT 
+                    poster.id as poster_id,
                     poster.email as poster_email,
                     poster.phone_number as poster_phone,
                     poster.first_name as poster_first_name,
@@ -249,12 +315,27 @@ class NotificationService {
             if (result.rows.length === 0) return;
 
             const { 
-                poster_email, poster_phone, poster_first_name,
+                poster_id, poster_email, poster_phone, poster_first_name,
                 applicant_first_name, applicant_last_name,
                 job_title, company_name 
             } = result.rows[0];
 
-            const frontendUrl = process.env.FRONTEND_URL || 'https://alumni.atu.edu.gh';
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
+
+            // ✅ Create in-app notification
+            await createNotification(
+                poster_id,
+                'job_application',
+                'New Job Application',
+                `${applicant_first_name} ${applicant_last_name} applied for ${job_title}`,
+                `/jobs/${jobId}`,
+                { 
+                    job_id: jobId,
+                    job_title: job_title,
+                    applicant_id: applicantId,
+                    applicant_name: `${applicant_first_name} ${applicant_last_name}`
+                }
+            );
 
             // Email to job poster
             const emailHtml = this.getJobApplicationNotificationEmailTemplate(
@@ -283,9 +364,11 @@ class NotificationService {
         }
     }
 
+
+
     // ==================== EMAIL TEMPLATES ====================
     
-    getConnectionRequestEmailTemplate(receiverName, senderFirstName, senderLastName, senderCompany, senderTitle, frontendUrl) {
+        getConnectionRequestEmailTemplate(receiverName, senderFirstName, senderLastName, senderCompany, senderTitle, frontendUrl) {
         return `
             <!DOCTYPE html>
             <html>
@@ -314,7 +397,7 @@ class NotificationService {
                         ` : ''}
 
                         <div style="text-align: center; margin: 30px 0;">
-                            <a href="${frontendUrl}/connections" 
+                            <a href="${frontendUrl}/networks" 
                                style="background: linear-gradient(135deg, #1e3a8a, #1e40af); color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
                                 View Request →
                             </a>
@@ -335,6 +418,8 @@ class NotificationService {
             </html>
         `;
     }
+
+
 
     getConnectionAcceptedEmailTemplate(requesterName, accepterFirstName, accepterLastName, frontendUrl) {
         return `
