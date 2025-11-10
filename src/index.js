@@ -44,10 +44,21 @@ app.use(helmet({
 }));
 
 // 2. CORS
+// 2. CORS
 app.use(cors({
-    origin: ['http://localhost:4200', 'http://localhost:3000'],
-    credentials: true
+    origin: [
+        'https://atu-alumni-network.web.app',
+        'https://atu-alumni-network.firebaseapp.com',
+        'http://localhost:4200',
+        'http://localhost:3000',
+        'http://localhost:5173' 
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
+
+app.set('trust proxy', 1);
 
 // 3. Body parsers
 app.use(express.json({ limit: '10mb' }));
